@@ -100,16 +100,16 @@ class Model(nn.Module):
         self.build()
 
     def build(self):
-        self.rnn_cell = nn.LSTMCell(161 * 2, self.rnn_hid_size)
-        self.pred_rnn = nn.LSTM(161, self.rnn_hid_size, batch_first = True)
+        self.rnn_cell = nn.LSTMCell(72 * 2, self.rnn_hid_size)
+        self.pred_rnn = nn.LSTM(72, self.rnn_hid_size, batch_first = True)
 
-        self.temp_decay_h = TemporalDecay(input_size = 161, output_size = self.rnn_hid_size, diag = False)
-        self.temp_decay_x = TemporalDecay(input_size = 161, output_size = 161, diag = True)
+        self.temp_decay_h = TemporalDecay(input_size = 72, output_size = self.rnn_hid_size, diag = False)
+        self.temp_decay_x = TemporalDecay(input_size = 72, output_size = 72, diag = True)
 
-        self.hist_reg = nn.Linear(self.rnn_hid_size *2, 161)
-        self.feat_reg = FeatureRegression(161)
+        self.hist_reg = nn.Linear(self.rnn_hid_size *2, 72)
+        self.feat_reg = FeatureRegression(72)
 
-        self.weight_combine = nn.Linear(161 * 2, 161)
+        self.weight_combine = nn.Linear(72 * 2, 72)
 
         self.dropout = nn.Dropout(p = 0.25)
         self.out = nn.Linear(self.rnn_hid_size, 1)
