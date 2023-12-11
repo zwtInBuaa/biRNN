@@ -1,0 +1,1 @@
+ Progress epoch 0, 100.00%, average loss 0.845240592956543
