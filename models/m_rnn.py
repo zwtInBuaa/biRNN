@@ -11,10 +11,9 @@ import utils
 import argparse
 import data_loader
 
-
 from sklearn import metrics
 
-SEQ_LEN =10
+SEQ_LEN = 10
 
 
 def binary_cross_entropy_with_logits(input, target, weight=None, size_average=True, reduce=True):
@@ -33,6 +32,7 @@ def binary_cross_entropy_with_logits(input, target, weight=None, size_average=Tr
         return loss.mean()
     else:
         return loss.sum()
+
 
 class FeatureRegression(nn.Module):
     def __init__(self, input_size):
@@ -58,8 +58,9 @@ class FeatureRegression(nn.Module):
         z_h = F.linear(x, self.W * Variable(self.m), self.b)
         return z_h
 
+
 class TemporalDecay(nn.Module):
-    def __init__(self, input_size, output_size, diag = False):
+    def __init__(self, input_size, output_size, diag=False):
         super(TemporalDecay, self).__init__()
         self.diag = diag
 
@@ -70,7 +71,7 @@ class TemporalDecay(nn.Module):
         self.b = Parameter(torch.Tensor(output_size))
 
         if self.diag == True:
-            assert(input_size == output_size)
+            assert (input_size == output_size)
             m = torch.eye(input_size, input_size)
             self.register_buffer('m', m)
 
@@ -90,30 +91,31 @@ class TemporalDecay(nn.Module):
         gamma = torch.exp(-gamma)
         return gamma
 
+
 class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
 
-        self.rnn_hid_size =256#64
-        #self.impute_weight = impute_weight
-        #self.label_weight = label_weight
+        self.rnn_hid_size = 256  # 64
+        # self.impute_weight = impute_weight
+        # self.label_weight = label_weight
 
         self.build()
 
     def build(self):
-        self.rnn_cell = nn.LSTMCell(161 * 2, self.rnn_hid_size)
+        self.rnn_cell = nn.LSTMCell(72 * 2, self.rnn_hid_size)
 
-        self.pred_rnn = nn.LSTM(161, self.rnn_hid_size, batch_first = True)
+        self.pred_rnn = nn.LSTM(72, self.rnn_hid_size, batch_first=True)
 
-        self.temp_decay_h = TemporalDecay(input_size = 161, output_size = self.rnn_hid_size, diag = False)
-        self.temp_decay_x = TemporalDecay(input_size = 161, output_size = 161, diag = True)
+        self.temp_decay_h = TemporalDecay(input_size=72, output_size=self.rnn_hid_size, diag=False)
+        self.temp_decay_x = TemporalDecay(input_size=72, output_size=72, diag=True)
 
-        self.hist_reg = nn.Linear(self.rnn_hid_size *2 , 161)
-        self.feat_reg = FeatureRegression(161)
+        self.hist_reg = nn.Linear(self.rnn_hid_size * 2, 72)
+        self.feat_reg = FeatureRegression(72)
 
-        self.weight_combine = nn.Linear(161 * 2, 161)
+        self.weight_combine = nn.Linear(72 * 2, 72)
 
-        self.dropout = nn.Dropout(p = 0.25)
+        self.dropout = nn.Dropout(p=0.25)
         self.out = nn.Linear(self.rnn_hid_size, 1)
 
     def get_hidden(self, data, direct):
@@ -122,7 +124,7 @@ class Model(nn.Module):
         deltas = data[direct]['deltas']
 
         hiddens = []
-        vare=[]
+        vare = []
 
         h = Variable(torch.zeros((values.size()[0], self.rnn_hid_size)))
         c = Variable(torch.zeros((values.size()[0], self.rnn_hid_size)))
@@ -138,18 +140,17 @@ class Model(nn.Module):
             d = deltas[:, t, :]
             gamma_h = self.temp_decay_h(d)
             h = h * gamma_h
-            inputs = torch.cat([x, m], dim = 1)
+            inputs = torch.cat([x, m], dim=1)
             h, c = self.rnn_cell(inputs, (h, c))
 
         return hiddens
-        #,vare
-
+        # ,vare
 
     def forward(self, data, direct):
         # Original sequence with 24 time steps
         hidden_forward = self.get_hidden(data, 'forward')
-        hidden_backward= self.get_hidden(data, 'backward')
-        hidden_backward=hidden_backward[::-1]
+        hidden_backward = self.get_hidden(data, 'backward')
+        hidden_backward = hidden_backward[::-1]
 
         values = data[direct]['values']
         masks = data[direct]['masks']
@@ -167,23 +168,23 @@ class Model(nn.Module):
 
             hf = hidden_forward[t]
             hb = hidden_backward[t]
-            h = torch.cat([hf,hb], dim = 1)
-            #gamma_xf = vare_forward[t]
-            #gamma_xb=vare_backward[t]
-            gama=self.temp_decay_x(d)
+            h = torch.cat([hf, hb], dim=1)
+            # gamma_xf = vare_forward[t]
+            # gamma_xb=vare_backward[t]
+            gama = self.temp_decay_x(d)
             x_h = self.hist_reg(h)
-            z=m*x+(1-m)*x_h
+            z = m * x + (1 - m) * x_h
             x_f = self.feat_reg(z)
 
-            alpha = F.sigmoid(self.weight_combine(torch.cat([m, gama], dim = 1)))
+            alpha = F.sigmoid(self.weight_combine(torch.cat([m, gama], dim=1)))
 
-            x_c = alpha * x_h + (1 - alpha)*x_f
+            x_c = alpha * x_h + (1 - alpha) * x_f
 
             x_loss += torch.sum(torch.abs(x - x_c) * m) / (torch.sum(m) + 1e-5)
 
-            imputations.append(x_c.unsqueeze(dim = 1))
+            imputations.append(x_c.unsqueeze(dim=1))
 
-        imputations = torch.cat(imputations, dim = 1)
+        imputations = torch.cat(imputations, dim=1)
         print(imputations.size())
         evals = data[direct]['evals']
         eval_masks = data[direct]['eval_masks']
@@ -197,22 +198,22 @@ class Model(nn.Module):
         if torch.cuda.is_available():
             h, c = h.cuda('cuda:0'), c.cuda('cuda:0')
 
-        imputations = Variable(imputations.data, requires_grad = False)
+        imputations = Variable(imputations.data, requires_grad=False)
         out, (h, c) = self.pred_rnn(imputations)
 
         y_h = self.out(h.squeeze())
-       # y_loss = binary_cross_entropy_with_logits(y_h, labels, reduce = False)
-       # y_loss = torch.sum(y_loss * is_train) / (torch.sum(is_train) + 1e-5)
+        # y_loss = binary_cross_entropy_with_logits(y_h, labels, reduce = False)
+        # y_loss = torch.sum(y_loss * is_train) / (torch.sum(is_train) + 1e-5)
 
-        #y_h = F.sigmoid(y_h)
+        # y_h = F.sigmoid(y_h)
 
-        #*self.impute_weight + y_loss * self.label_weight
-        return {'loss': x_loss / SEQ_LEN, 'predictions': y_h,\
-                'imputations': imputations, 'labels': labels, 'is_train': is_train,\
+        # *self.impute_weight + y_loss * self.label_weight
+        return {'loss': x_loss / SEQ_LEN, 'predictions': y_h, \
+                'imputations': imputations, 'labels': labels, 'is_train': is_train, \
                 'evals': evals, 'eval_masks': eval_masks}
 
     def run_on_batch(self, data, optimizer, epoch=None):
-        ret = self(data, direct = 'forward')
+        ret = self(data, direct='forward')
 
         if optimizer is not None:
             optimizer.zero_grad()
